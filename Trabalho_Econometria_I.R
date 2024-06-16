@@ -1,4 +1,4 @@
-# Script em R para o trabalho de Econometria I - Michel Csillag Finger e Theodoro Nunes Figueiredo Motta
+# Script em R para o trabalho de Econometria I - Michel Csillag Finger e Theodoro Nunes Figueiredo Mota
 # Parte do código é derivada do código INPUR_R_TS_ALUNO_5ER.R, em que o próprio 
 # INEP/Daeb orienta sobre a leitura dos resultados do SAEB 2019
 
