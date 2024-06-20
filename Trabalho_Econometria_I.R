@@ -11,7 +11,7 @@ library(tidyr)
 library(stargazer)
 library(ggplot2)
 library(lmtest)
-library(corrplot)
+library(psych)
 
 # Funções
 
@@ -75,21 +75,23 @@ dados <- dados_original %>%
     ES_Pai = ifelse(TX_RESP_Q005 == "E", 1, 0), # Dummy ES Pai
     EMS_Pai = ifelse(TX_RESP_Q005 == "E" |
                        TX_RESP_Q005 == "D", 1, 0), # Dummy EM ou ES Pai
+    Conversa_Esc_Alto = ifelse(TX_RESP_Q006A == "C", 1, 0),
+    Incentivo_Estudo_Alto = ifelse(TX_RESP_Q006B == "C", 1, 0),
+    Incentivo_LC_Alto = ifelse(TX_RESP_Q006C == "C", 1, 0),
+    Incentivo_Presenca_Alto = ifelse(TX_RESP_Q006D == "C", 1, 0),
     across(all_of(cols_transf_2), transf_em_num_2),
     across(all_of(cols_transf_3), transf_em_num_3),
     across(all_of(cols_transf_5), transf_em_num_5)
   ) %>%
-  select(ID_REGIAO, ID_UF, Capital, IN_PUBLICA, Urbano, IN_PREENCHIMENTO_LP,IN_PREENCHIMENTO_MT, 
-         IN_PROFICIENCIA_LP, IN_PROFICIENCIA_MT, PESO_ALUNO_LP, PROFICIENCIA_LP, PROFICIENCIA_LP_SAEB,
-         PESO_ALUNO_MT, PROFICIENCIA_MT, PROFICIENCIA_MT_SAEB, IN_PREENCHIMENTO_QUESTIONARIO,
-         LM_PT, TX_RESP_Q002, TX_RESP_Q003A, TX_RESP_Q003B, TX_RESP_Q003C,TX_RESP_Q003D,TX_RESP_Q004, TX_RESP_Q005, 
-         TX_RESP_Q006A, TX_RESP_Q006B, TX_RESP_Q006C, TX_RESP_Q006D, ES_Mae, EMS_Mae, ES_Pai, EMS_Pai) %>%
+  select(ID_UF, Capital, IN_PUBLICA, Urbano, IN_PREENCHIMENTO_LP, IN_PREENCHIMENTO_MT, 
+         PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT, TX_RESP_Q002, TX_RESP_Q003A,
+         TX_RESP_Q003B, TX_RESP_Q004, TX_RESP_Q005, TX_RESP_Q006A, TX_RESP_Q006B, 
+         TX_RESP_Q006C, TX_RESP_Q006D, ES_Mae, EMS_Mae, ES_Pai, EMS_Pai, 
+         Conversa_Esc_Alto, Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto) %>%
   rename(
     Raça = TX_RESP_Q002,
     Pres_Mae = TX_RESP_Q003A,
     Pres_Pai = TX_RESP_Q003B,
-    Pres_Irmao = TX_RESP_Q003C,
-    Pres_Avo = TX_RESP_Q003D,
     Esc_Mae = TX_RESP_Q004,
     Esc_Pai = TX_RESP_Q005,
     Conversa_Esc = TX_RESP_Q006A,
@@ -102,15 +104,21 @@ dados <- dados_original %>%
 
 
 # Variáveis Descritivas  -------------------------------------------------------
-summary(dados)
-stargazer(dados) # pensar melhor nas variáveis descritivas
+summary(dados) # descrever direto no texto ao invés de fazer tabela, acho; se precisar, faço tabela
+stargazer(dados, title="Descritivas das Variáveis Utilizadas no Modelo", 
+          label = "descritivas") # tiramos as variáveis categóricas no latex
 
 # quantidade de mães e quantidade de pais
 
 dados |> count(Pres_Mae)
 dados |> count(Pres_Pai)
 
+# Tabela!
+Pres_Pai_1 <- sum(dados$Pres_Pai)
+Pres_Pai_0 <- nrow(dados) - Pres_Pai_1
 
+Pres_Mae_1 <- sum(dados$Pres_Mae)
+Pres_Mae_0 <- nrow(dados) - Pres_Mae_1
 
 
 
@@ -118,40 +126,44 @@ dados |> count(Pres_Pai)
 
 # Modelo 1: Matemática e Escolaridade da Mãe
 
-modelo1 <- lm(PROFICIENCIA_MT_SAEB ~ ES_Mae + IN_PUBLICA + Urbano + Capital + LM_PT + as.factor(Raça) + #as.factor(Raça) 
-                Conversa_Esc + Incentivo_Estudo + Incentivo_LC + Incentivo_Presenca, # controles influência direta pais
-              data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Pai == 1))
+modelo1 <- lm(PROFICIENCIA_MT_SAEB ~ ES_Mae + IN_PUBLICA + Urbano + Capital + 
+                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
+                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+              data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Mae == 1)) # controles influência direta pais
 bptest(modelo1) # há heteroscedasticidade
-coeftest(modelo1, type="HC1")
+coeftest(modelo1, type="HC0")
 summary(modelo1)
 
 # Modelo 2: Matemática e Escolaridade do Pai
-# bptest
-modelo2 <- lm(PROFICIENCIA_MT_SAEB ~ ES_Pai + IN_PUBLICA + Urbano + Capital + LM_PT + #as.factor(Raça) 
-                Conversa_Esc + Incentivo_Estudo + Incentivo_LC + Incentivo_Presenca, # controles influência direta pais
-              data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Pai == 1))
+
+modelo2 <- lm(PROFICIENCIA_MT_SAEB ~ ES_Pai + IN_PUBLICA + Urbano + Capital + 
+                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
+                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+              data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Pai == 1)) # controles influência direta pais
 bptest(modelo2) # há heteroscedasticidade
-coeftest(modelo2, type="HC1")
+coeftest(modelo2, type="HC0")
 summary(modelo2)
 
 
 # Modelo 3: LP e Escolaridade do Mae
-# bptest
-modelo3 <- lm(PROFICIENCIA_LP_SAEB ~ ES_Mae + IN_PUBLICA + Urbano + Capital + LM_PT + #as.factor(Raça) 
-                Conversa_Esc + Incentivo_Estudo + Incentivo_LC + Incentivo_Presenca, # controles influência direta pais
-              data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Pai == 1))
+
+modelo3 <- lm(PROFICIENCIA_LP_SAEB ~ ES_Mae + IN_PUBLICA + Urbano + Capital + 
+                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
+                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+              data=dados, subset=(IN_PREENCHIMENTO_LP == 1 & Pres_Mae == 1)) # controles influência direta pais
 bptest(modelo3) # há heteroscedasticidade
-coeftest(modelo3, type="HC1")
+coeftest(modelo3, type="HC0")
 summary(modelo3)
 
 
 # Modelo 4: LP e Escolaridade do Pai
-# bptest
-modelo4 <- lm(PROFICIENCIA_LP_SAEB ~ ES_Pai + IN_PUBLICA + Urbano + Capital + LM_PT + #as.factor(Raça) 
-                Conversa_Esc + Incentivo_Estudo + Incentivo_LC + Incentivo_Presenca, # controles influência direta pais
-              data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Pai == 1))
+
+modelo4 <- lm(PROFICIENCIA_LP_SAEB ~ ES_Pai + IN_PUBLICA + Urbano + Capital + 
+                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
+                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+              data=dados, subset=(IN_PREENCHIMENTO_LP == 1 & Pres_Pai == 1)) # controles influência direta pais
 bptest(modelo4) # há heteroscedasticidade
-coeftest(modelo4, type="HC1")
+coeftest(modelo4, type="HC0")
 summary(modelo4)
 
 
@@ -161,37 +173,73 @@ summary(modelo4)
 # Variáveis descritivas
 # Raça
 ggplot(dados, aes(Raça)) +
-  geom_bar()
+  geom_bar() +
+  theme_minimal()
+
+# Matriz de Correlação
+matriz_cor <- cor(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
+                  PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
+                  Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc, 
+                  Incentivo_Estudo, Incentivo_LC, Incentivo_Presenca)), 
+                  method = "pearson")
+corrplot(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
+          PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
+          Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc, 
+          Incentivo_Estudo, Incentivo_LC, Incentivo_Presenca)), 
+        method="number", type="upper")
+
+corPlot(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
+         PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
+         Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc, 
+         Incentivo_Estudo, Incentivo_LC, Incentivo_Presenca)), 
+        cex=1)
 
 
-ggplot(dados, aes(Pres_Mae)) +
-  geom_bar()
+# Criação data frame auxiliar 
+count_data <- dados %>%
+  summarise(
+    Pres_Mae_0 = sum(Pres_Mae == 0),
+    Pres_Mae_1 = sum(Pres_Mae == 1),
+    Pres_Pai_0 = sum(Pres_Pai == 0),
+    Pres_Pai_1 = sum(Pres_Pai == 1)
+  ) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Count")
 
-ggplot(dados, aes(Pres_Pai)) +
-  geom_bar()
+# Cria coluna para indicar a variável original e o valor (0 ou 1)
+count_data <- count_data %>%
+  mutate(
+    VariableType = case_when(
+      grepl("Pres_Mae", Variable) ~ "Pres_Mae",
+      grepl("Pres_Pai", Variable) ~ "Pres_Pai"
+    ),
+    Value = case_when(
+      grepl("_0$", Variable) ~ "0",
+      grepl("_1$", Variable) ~ "1"
+    )
+  )
 
-matriz_cor <- cor(dados, method = "pearson")
-corrplot(matriz_cor)
-
-
-plot(dados$ES_Mae, dados$PROFICIENCIA_MT)
-
-
-Pres_Pai_1 <- sum(dados$Pres_Pai)
-Pres_Pai_0 <- nrow(dados) - Pres_Pai_1
-
-Pres_Mae_1 <- sum(dados$Pres_Mae)
-Pres_Mae_0 <- nrow(dados) - Pres_Mae_1
-
-teste <- data.frame(
-  Nome = c(Pres_Pai_1, Pres_Pai_0, Pres_Mae_1, Pres_Mae_0),
-  Freq = c(Pres_Pai_1, Pres_Pai_0, Pres_Mae_1, Pres_Mae_0)
-)
-
-ggplot(teste, aes(x=Nome, y=Freq))+
-  geom_col(position="dodge")
+# Gráfico de Barras
+ggplot(count_data, aes(x = Value, y = Count, fill = VariableType)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("Pres_Mae" = "red", "Pres_Pai" = "blue")) +
+  labs(x = "Residência em Casa (0 = Não, 1 = Sim)", # Normalmente, quem mora na sua casa?
+       y = "Quantidade") + # Título: Comparação de Frequência de Residência dos Pais
+  theme_minimal()
 
 
 # Nota x Educação Materna
+plot(dados$Esc_Mae, dados$PROFICIENCIA_MT)
+plot(dados$Esc_Mae, dados$PROFICIENCIA_LP)
+
+
+plot(dados$ES_Mae, dados$PROFICIENCIA_MT)
+plot(dados$ES_Mae, dados$PROFICIENCIA_LP)
+
+
 
 # Nota x Educação Paterna
+plot(dados$Esc_Mae, dados$PROFICIENCIA_MT)
+plot(dados$Esc_Mae, dados$PROFICIENCIA_LP)
+
+plot(dados$ES_Pai, dados$PROFICIENCIA_MT)
+plot(dados$ES_Pai, dados$PROFICIENCIA_MT)
