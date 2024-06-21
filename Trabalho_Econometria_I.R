@@ -273,3 +273,14 @@ LPxESP <- plot(dados$ES_Pai, dados$PROFICIENCIA_LP)
 
 # Concatenando os gráficos:
 grid.arrange(MTxESM, LPxESM, MTxESP, LPxESP)
+
+#Gráfico de distribuição das notas
+dist_notas_lp<- ggplot(data = dados, aes(x = PROFICIENCIA_LP_SAEB)) +
+  geom_density(fill = "skyblue", color = "black") +
+  labs(x = "Valores", y = "Densidade", title = "Distribuição das notas de língua portuguesa")
+dist_notas_lp
+
+dist_notas_mt<- ggplot(data = dados, aes(x = PROFICIENCIA_MT_SAEB)) +
+  geom_density(fill = "skyblue", color = "black") +
+  labs(x = "Valores", y = "Densidade", title = "Distribuição das notas de matemática")
+dist_notas_mt
