@@ -12,6 +12,8 @@ library(stargazer)
 library(ggplot2)
 library(lmtest)
 library(psych)
+library(gridExtra)
+library(corrplot)
 
 # Funções
 
@@ -70,11 +72,7 @@ dados <- dados_original %>%
     Urbano = ifelse(ID_LOCALIZACAO == 1, 1, 0),
     LM_PT = ifelse(TX_RESP_Q001 == "A", 1, 0), # Dummy caso português seja a língua materna
     ES_Mae = ifelse(TX_RESP_Q004 == "E", 1, 0), # Dummy Ensino Superior Mãe
-    EMS_Mae = ifelse(TX_RESP_Q004 == "E" |
-                       TX_RESP_Q004 == "D", 1, 0), # Dummy EM ou ES Mãe
     ES_Pai = ifelse(TX_RESP_Q005 == "E", 1, 0), # Dummy ES Pai
-    EMS_Pai = ifelse(TX_RESP_Q005 == "E" |
-                       TX_RESP_Q005 == "D", 1, 0), # Dummy EM ou ES Pai
     Conversa_Esc_Alto = ifelse(TX_RESP_Q006A == "C", 1, 0),
     Incentivo_Estudo_Alto = ifelse(TX_RESP_Q006B == "C", 1, 0),
     Incentivo_LC_Alto = ifelse(TX_RESP_Q006C == "C", 1, 0),
@@ -86,8 +84,8 @@ dados <- dados_original %>%
   select(ID_UF, Capital, IN_PUBLICA, Urbano, IN_PREENCHIMENTO_LP, IN_PREENCHIMENTO_MT, 
          PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT, TX_RESP_Q002, TX_RESP_Q003A,
          TX_RESP_Q003B, TX_RESP_Q004, TX_RESP_Q005, TX_RESP_Q006A, TX_RESP_Q006B, 
-         TX_RESP_Q006C, TX_RESP_Q006D, ES_Mae, EMS_Mae, ES_Pai, EMS_Pai, 
-         Conversa_Esc_Alto, Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto) %>%
+         TX_RESP_Q006C, TX_RESP_Q006D, ES_Mae, ES_Pai, Conversa_Esc_Alto, 
+         Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto) %>%
   rename(
     Raça = TX_RESP_Q002,
     Pres_Mae = TX_RESP_Q003A,
@@ -121,52 +119,81 @@ Pres_Mae_1 <- sum(dados$Pres_Mae)
 Pres_Mae_0 <- nrow(dados) - Pres_Mae_1
 
 
+# Estado com maior média de notas
+estado_maior_media_notas <- dados |>
+  group_by(ID_UF) |>
+  summarise(Nota_LP = mean(PROFICIENCIA_LP_SAEB), 
+            Nota_MT = mean(PROFICIENCIA_MT_SAEB))
+# Estado Maior Média LP e MT: 35 = São Paulo → será usado como base de comparação
+
+stargazer(estado_maior_media_notas, summary = FALSE, 
+          title = "Média de Notas nas Provas por UF", label = "NotasUF")
+# Essa tabela ainda foi manipulada manualmente também
+
 
 # Modelos  -------------------------------------------------------
 
 # Modelo 1: Matemática e Escolaridade da Mãe
 
 modelo1 <- lm(PROFICIENCIA_MT_SAEB ~ ES_Mae + IN_PUBLICA + Urbano + Capital + 
-                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
-                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+                LM_PT + relevel(as.factor(Raça), ref = "1") + relevel(as.factor(ID_UF), ref = "35") + 
+                Conversa_Esc_Alto + Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
               data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Mae == 1)) # controles influência direta pais
 bptest(modelo1) # há heteroscedasticidade
-coeftest(modelo1, type="HC0")
+r_m1 <- coeftest(modelo1, type="HC0")
 summary(modelo1)
 
 # Modelo 2: Matemática e Escolaridade do Pai
 
 modelo2 <- lm(PROFICIENCIA_MT_SAEB ~ ES_Pai + IN_PUBLICA + Urbano + Capital + 
-                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
-                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+                LM_PT + relevel(as.factor(Raça), ref = "1") + relevel(as.factor(ID_UF), ref = "35") + 
+                Conversa_Esc_Alto + Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
               data=dados, subset=(IN_PREENCHIMENTO_MT == 1 & Pres_Pai == 1)) # controles influência direta pais
 bptest(modelo2) # há heteroscedasticidade
-coeftest(modelo2, type="HC0")
+r_m2 <- coeftest(modelo2, type="HC0")
 summary(modelo2)
 
 
 # Modelo 3: LP e Escolaridade do Mae
 
 modelo3 <- lm(PROFICIENCIA_LP_SAEB ~ ES_Mae + IN_PUBLICA + Urbano + Capital + 
-                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
-                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+                LM_PT + relevel(as.factor(Raça), ref = "1") + relevel(as.factor(ID_UF), ref = "35") + 
+                Conversa_Esc_Alto + Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
               data=dados, subset=(IN_PREENCHIMENTO_LP == 1 & Pres_Mae == 1)) # controles influência direta pais
 bptest(modelo3) # há heteroscedasticidade
-coeftest(modelo3, type="HC0")
+r_m3 <- coeftest(modelo3, type="HC0")
 summary(modelo3)
 
 
 # Modelo 4: LP e Escolaridade do Pai
 
 modelo4 <- lm(PROFICIENCIA_LP_SAEB ~ ES_Pai + IN_PUBLICA + Urbano + Capital + 
-                LM_PT + as.factor(Raça) + as.factor(ID_UF) + Conversa_Esc_Alto + 
-                Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
+                LM_PT + relevel(as.factor(Raça), ref = "1") + relevel(as.factor(ID_UF), ref = "35") + 
+                Conversa_Esc_Alto + Incentivo_Estudo_Alto + Incentivo_LC_Alto + Incentivo_Presenca_Alto, 
               data=dados, subset=(IN_PREENCHIMENTO_LP == 1 & Pres_Pai == 1)) # controles influência direta pais
 bptest(modelo4) # há heteroscedasticidade
-coeftest(modelo4, type="HC0")
+r_m4 <- coeftest(modelo4, type="HC0")
 summary(modelo4)
 
 
+stargazer(r_m1, r_m2, r_m3, r_m4, 
+          title = "Resultados das Regressões", label = "resultados",
+          column.labels = c("MT e Mãe", "MT e Pai", "LP e Mãe", "LP e Pai"),
+          no.space=TRUE, 
+          covariate.labels = c("ES Mãe", "ES Pai", "Escola Pública", "Cidade Urbana", "Capital",
+                             "Português Língua Materna", "Não quis declarar", "Preta", "Parda", 
+                             "Amarela", "Indígena", "Rondônia", "Acre", "Amazonas", "Roraima", "Pará", 
+                             "Amapá", "Tocantins", "Maranhão", "Piauí", "Ceará", "Rio Grande do Norte",
+                             "Paraíba", "Pernambuco", "Alagoas", "Sergipe", "Bahia", "Minas Gerais",
+                             "Espírito Santo", "Rio de Janeiro", "Paraná", "Santa Catarina", 
+                             "Rio Grande do Sul", "Mato Grosso do Sul", "Mato Grosso", "Goiás", "Distrito Federal",
+                             "Alta Conversa Escola", "Alto Incentivo Estudo", "Alto Incentivo LC", "Alto Incentivo Presença",
+                             "Contante"),
+          order = c("ES Mae", "ES Pai", "Alta Conversa Escola", "Alto Incentivo Estudo",
+                   "Alto Incentivo LC", "Alto Incentivo Presença"))
+# Essa tabela ainda foi posteriormente manipulada no Latex
+# As medidas de ajuste foram inseridas na tabela manualmente após o seguinte comando:
+stargazer(modelo1, modelo2, modelo3, modelo4)
 
 
 # Gráficos  -------------------------------------------------------
@@ -179,20 +206,28 @@ ggplot(dados, aes(Raça)) +
 # Matriz de Correlação
 matriz_cor <- cor(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
                   PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
-                  Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc, 
-                  Incentivo_Estudo, Incentivo_LC, Incentivo_Presenca)), 
+                  Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc_Alto,
+                  Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto)), 
                   method = "pearson")
+
+stargazer(matriz_cor, title = "Matriz de Correlação")
+
 corrplot(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
           PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
-          Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc, 
-          Incentivo_Estudo, Incentivo_LC, Incentivo_Presenca)), 
-        method="number", type="upper")
+          Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc_Alto,
+          Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto)),
+        method="number", type="upper", is.corr = F)
+
+corrplot(matriz_cor, method = "number", type = "upper")
 
 corPlot(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
          PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
-         Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc, 
-         Incentivo_Estudo, Incentivo_LC, Incentivo_Presenca)), 
-        cex=1)
+         Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc_Alto,
+         Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto)), 
+        cex=1, labels = c('Capital', "Pública", "Urbano",
+                          "Nota LP", "Nota MT", "LM_PT",
+                          "Pres_Mae", "Pres_Pai", "Esc_Mae", "Esc_Pai", "Conversa Esc Alto",
+                          "IEstudo Alto", "ILC Alto", "IPresenca Alto"))
 
 
 # Criação data frame auxiliar 
@@ -219,27 +254,22 @@ count_data <- count_data %>%
   )
 
 # Gráfico de Barras
-ggplot(count_data, aes(x = Value, y = Count, fill = VariableType)) +
+pres_mae_pai <- ggplot(count_data, aes(x = Value, y = Count, fill = VariableType)) +
   geom_bar(stat = "identity", position = "dodge") +
   scale_fill_manual(values = c("Pres_Mae" = "red", "Pres_Pai" = "blue")) +
   labs(x = "Residência em Casa (0 = Não, 1 = Sim)", # Normalmente, quem mora na sua casa?
        y = "Quantidade") + # Título: Comparação de Frequência de Residência dos Pais
   theme_minimal()
 
+ggsave(graf_barras_mae_pai, pres_mae_pai, device = "pdf")
 
 # Nota x Educação Materna
-plot(dados$Esc_Mae, dados$PROFICIENCIA_MT)
-plot(dados$Esc_Mae, dados$PROFICIENCIA_LP)
-
-
-plot(dados$ES_Mae, dados$PROFICIENCIA_MT)
-plot(dados$ES_Mae, dados$PROFICIENCIA_LP)
-
-
+MTxESM <- plot(dados$ES_Mae, dados$PROFICIENCIA_MT)
+LPxESM <- plot(dados$ES_Mae, dados$PROFICIENCIA_LP)
 
 # Nota x Educação Paterna
-plot(dados$Esc_Mae, dados$PROFICIENCIA_MT)
-plot(dados$Esc_Mae, dados$PROFICIENCIA_LP)
+MTxESP <- plot(dados$ES_Pai, dados$PROFICIENCIA_MT)
+LPxESP <- plot(dados$ES_Pai, dados$PROFICIENCIA_LP)
 
-plot(dados$ES_Pai, dados$PROFICIENCIA_MT)
-plot(dados$ES_Pai, dados$PROFICIENCIA_MT)
+# Concatenando os gráficos:
+grid.arrange(MTxESM, LPxESM, MTxESP, LPxESP)
