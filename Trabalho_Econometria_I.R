@@ -270,3 +270,15 @@ ES_mae_pai <- ggplot(count_data2, aes(x = Value, y = Count, fill = VariableType)
   theme_minimal()
 
 ggsave(filename = "graf_barras_ES_mae_pai", plot = ES_mae_pai, device = "pdf")
+
+
+#Gráfico de distribuição das notas
+dist_notas_lp<- ggplot(data = dados, aes(x = PROFICIENCIA_LP_SAEB)) +
+  geom_density(fill = "skyblue", color = "black") +
+  labs(x = "Valores", y = "Densidade", title = "Distribuição das notas de língua portuguesa")
+dist_notas_lp
+
+dist_notas_mt<- ggplot(data = dados, aes(x = PROFICIENCIA_MT_SAEB)) +
+  geom_density(fill = "skyblue", color = "black") +
+  labs(x = "Valores", y = "Densidade", title = "Distribuição das notas de matemática")
+dist_notas_mt
