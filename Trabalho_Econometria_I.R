@@ -11,7 +11,6 @@ library(tidyr)
 library(stargazer)
 library(ggplot2)
 library(lmtest)
-library(psych)
 library(gridExtra)
 library(corrplot)
 
@@ -106,18 +105,6 @@ summary(dados) # descrever direto no texto ao invés de fazer tabela, acho; se p
 stargazer(dados, title="Descritivas das Variáveis Utilizadas no Modelo", 
           label = "descritivas") # tiramos as variáveis categóricas no latex
 
-# quantidade de mães e quantidade de pais
-
-dados |> count(Pres_Mae)
-dados |> count(Pres_Pai)
-
-# Tabela!
-Pres_Pai_1 <- sum(dados$Pres_Pai)
-Pres_Pai_0 <- nrow(dados) - Pres_Pai_1
-
-Pres_Mae_1 <- sum(dados$Pres_Mae)
-Pres_Mae_0 <- nrow(dados) - Pres_Mae_1
-
 
 # Estado com maior média de notas
 estado_maior_media_notas <- dados |>
@@ -204,31 +191,16 @@ ggplot(dados, aes(Raça)) +
   theme_minimal()
 
 # Matriz de Correlação
-matriz_cor <- cor(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
-                  PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
-                  Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc_Alto,
-                  Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto)), 
-                  method = "pearson")
-
-stargazer(matriz_cor, title = "Matriz de Correlação")
-
-corrplot(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
-          PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
-          Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc_Alto,
-          Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto)),
-        method="number", type="upper", is.corr = F)
-
-corrplot(matriz_cor, method = "number", type = "upper")
-
-corPlot(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
+graf_corr <- corPlot(subset(dados, select = c(Capital, IN_PUBLICA, Urbano,
          PROFICIENCIA_LP_SAEB, PROFICIENCIA_MT_SAEB, LM_PT,
          Pres_Mae, Pres_Pai, Esc_Mae, Esc_Pai, Conversa_Esc_Alto,
          Incentivo_Estudo_Alto, Incentivo_LC_Alto, Incentivo_Presenca_Alto)), 
         cex=1, labels = c('Capital', "Pública", "Urbano",
                           "Nota LP", "Nota MT", "LM_PT",
-                          "Pres_Mae", "Pres_Pai", "Esc_Mae", "Esc_Pai", "Conversa Esc Alto",
-                          "IEstudo Alto", "ILC Alto", "IPresenca Alto"))
+                          "Pres_Mae", "Pres_Pai", "Esc_Mae", "Esc_Pai", "Conv.Esc.",
+                          "IEst. Alto", "ILC Alto", "IP Alto"))
 
+ggsave("grafico_correlação.pdf", graf_corr, device = "pdf")
 
 # Criação data frame auxiliar 
 count_data <- dados %>%
@@ -253,6 +225,8 @@ count_data <- count_data %>%
     )
   )
 
+dev.off()
+
 # Gráfico de Barras
 pres_mae_pai <- ggplot(count_data, aes(x = Value, y = Count, fill = VariableType)) +
   geom_bar(stat = "identity", position = "dodge") +
@@ -261,15 +235,38 @@ pres_mae_pai <- ggplot(count_data, aes(x = Value, y = Count, fill = VariableType
        y = "Quantidade") + # Título: Comparação de Frequência de Residência dos Pais
   theme_minimal()
 
-ggsave(graf_barras_mae_pai, pres_mae_pai, device = "pdf")
+ggsave(filename = "graf_barras_mae_pai", plot = pres_mae_pai, device = "pdf")
 
-# Nota x Educação Materna
-MTxESM <- plot(dados$ES_Mae, dados$PROFICIENCIA_MT)
-LPxESM <- plot(dados$ES_Mae, dados$PROFICIENCIA_LP)
 
-# Nota x Educação Paterna
-MTxESP <- plot(dados$ES_Pai, dados$PROFICIENCIA_MT)
-LPxESP <- plot(dados$ES_Pai, dados$PROFICIENCIA_LP)
+# Criação data frame auxiliar 
+count_data2 <- dados %>%
+  summarise(
+    ES_Mae_0 = sum(ES_Mae == 0),
+    ES_Mae_1 = sum(ES_Mae == 1),
+    ES_Pai_0 = sum(ES_Pai == 0),
+    ES_Pai_1 = sum(ES_Pai == 1)
+  ) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Count")
 
-# Concatenando os gráficos:
-grid.arrange(MTxESM, LPxESM, MTxESP, LPxESP)
+# Cria coluna para indicar a variável original e o valor (0 ou 1)
+count_data2 <- count_data2 %>%
+  mutate(
+    VariableType = case_when(
+      grepl("ES_Mae", Variable) ~ "ES_Mae",
+      grepl("ES_Pai", Variable) ~ "ES_Pai"
+    ),
+    Value = case_when(
+      grepl("_0$", Variable) ~ "0",
+      grepl("_1$", Variable) ~ "1"
+    )
+  )
+
+# Gráfico de Barras
+ES_mae_pai <- ggplot(count_data2, aes(x = Value, y = Count, fill = VariableType)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("ES_Mae" = "coral", "ES_Pai" = "darkturquoise")) +
+  labs(x = "Ensino Superior (0 = Não, 1 = Sim)",
+       y = "Quantidade") +
+  theme_minimal()
+
+ggsave(filename = "graf_barras_ES_mae_pai", plot = ES_mae_pai, device = "pdf")
